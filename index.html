@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>🌸 ななみ がっこう</title>
-<script src="https://apis.google.com/js/api.js" async defer></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 if (location.protocol === 'file:') {
   var serverUrl = 'http://localhost:8770/' + encodeURIComponent('タケノビ學校_菜々美.html');
@@ -459,33 +457,15 @@ ruby rt{font-size:0.55em;color:var(--pink-deep);font-weight:700;}
   </div>
 
   <div class="panel">
-    <div class="panel-header">
-      <div class="panel-title">📅 きょうの よてい</div>
-      <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
-        <button id="gcalLoginBtn" class="big-btn btn-blue" style="font-size:12px;padding:8px 12px;display:none;" onclick="gcalLogin()">ログイン</button>
-        <button id="gcalLogoutBtn" class="big-btn btn-yellow" style="font-size:12px;padding:8px 12px;display:none;" onclick="gcalLogout()">ログアウト</button>
-      </div>
-    </div>
+    <div class="panel-header"><div class="panel-title">📅 きょうの よてい</div></div>
     <div class="panel-body">
-      <div id="gcalStatus" style="text-align:center;padding:14px;background:var(--pink-pale);border-radius:14px;margin-bottom:12px;font-size:14px;font-weight:700;color:var(--pink-deep);">🔄 グーグルカレンダー じゅんびちゅう...</div>
-      <div id="gcalEventList" style="margin-bottom:12px;"></div>
-      <div id="gcalAddForm" style="display:none;background:linear-gradient(135deg,#FFE4F1,#FFF5F9);padding:14px;border-radius:14px;border:3px dashed var(--pink);margin-bottom:12px;">
-        <div style="font-size:14px;font-weight:900;color:var(--pink-deep);margin-bottom:10px;">＋ あたらしい よてい</div>
-        <div style="display:grid;grid-template-columns:1fr;gap:8px;">
-          <input type="date" id="gcalNewDate" style="padding:12px;font-size:16px;font-weight:700;border:3px solid var(--pink-pale);border-radius:14px;font-family:inherit;">
-          <input type="text" id="gcalNewTitle" placeholder="なんの よてい?" style="padding:12px;font-size:16px;font-weight:700;border:3px solid var(--pink-pale);border-radius:14px;font-family:inherit;">
-          <div style="display:flex;gap:8px;">
-            <button class="big-btn" style="flex:1;" onclick="gcalCreateEvent()">📅 ふやす</button>
-            <button class="big-btn btn-yellow" style="flex:0;padding:14px 18px;" onclick="toggleGcalAddForm()">キャンセル</button>
-          </div>
-        </div>
+      <div id="todayEvents" style="margin-bottom:12px;"></div>
+      <div style="border-radius:14px;overflow:hidden;border:3px solid var(--pink-light);background:#fff;">
+        <iframe src="https://calendar.google.com/calendar/embed?src=ja.japanese%23holiday%40group.v.calendar.google.com&ctz=Asia%2FTokyo&hl=ja&mode=AGENDA&showTitle=0&showNav=1&showDate=1&showPrint=0&showTabs=0&showCalendars=0&showTz=0&bgcolor=%23FFFFFF" style="border:0;width:100%;height:340px;" frameborder="0" scrolling="yes"></iframe>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button class="big-btn" style="flex:1;" onclick="toggleGcalAddForm()">＋ よていを ふやす</button>
-        <a href="https://calendar.google.com/calendar/u/0/r" target="_blank" style="flex:0;text-decoration:none;">
-          <button class="big-btn btn-blue" style="padding:14px 18px;">📅 ひらく</button>
-        </a>
-      </div>
+      <a href="https://calendar.google.com/calendar/u/0/r" target="_blank" style="display:block;margin-top:10px;text-decoration:none;">
+        <button class="big-btn btn-blue" style="width:100%;">📅 グーグルカレンダーをひらく</button>
+      </a>
     </div>
   </div>
 
@@ -1011,189 +991,9 @@ function resetKaeru(){
 }
 
 /* ============================
-   グーグルカレンダー API れんけい
+   きょうの よてい（ローカル データ から）
    ============================ */
-const GCAL_CLIENT_ID='325804835579-90kjm5cr8jodjoi08k8m6jns5bvok9sc.apps.googleusercontent.com';
-const GCAL_SCOPES='https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly';
-let gcalToken=STORE.get('gcalToken',null);
-let gcalTokenClient=null;
-let gcalGapiReady=false;
-let gcalGisReady=false;
-
-function gcalLog(msg,isError){
-  const el=document.getElementById('gcalStatus');
-  if(!el)return;
-  if(isError){
-    el.style.background='#FFCDD2';el.style.color='#C62828';
-  }else{
-    el.style.background='var(--pink-pale)';el.style.color='var(--pink-deep)';
-  }
-  el.innerHTML=msg;
-}
-function gcalUpdateLoginUI(){
-  const inB=document.getElementById('gcalLoginBtn');
-  const outB=document.getElementById('gcalLogoutBtn');
-  if(gcalToken){inB.style.display='none';outB.style.display='inline-block';}
-  else{inB.style.display='inline-block';outB.style.display='none';}
-}
-function gcalInit(){
-  if(typeof gapi==='undefined'||typeof google==='undefined')return;
-  if(gcalGapiReady&&gcalGisReady)return;
-  if(!gcalGapiReady){
-    gapi.load('client',()=>{
-      gapi.client.init({discoveryDocs:['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest']}).then(()=>{
-        gcalGapiReady=true;
-        if(gcalToken){gapi.client.setToken({access_token:gcalToken});gcalLoadEvents();}
-        gcalAfterReady();
-      });
-    });
-  }
-  if(!gcalGisReady&&typeof google.accounts!=='undefined'){
-    gcalTokenClient=google.accounts.oauth2.initTokenClient({
-      client_id:GCAL_CLIENT_ID,
-      scope:GCAL_SCOPES,
-      callback:(resp)=>{
-        if(resp.error){gcalLog('❌ ログイン エラー: '+resp.error,true);return;}
-        gcalToken=resp.access_token;
-        STORE.set('gcalToken',gcalToken);
-        gcalUpdateLoginUI();
-        gcalLog('✓ ログイン せいこう！');
-        gcalLoadEvents();
-      }
-    });
-    gcalGisReady=true;
-    gcalAfterReady();
-  }
-}
-function gcalAfterReady(){
-  if(!gcalGapiReady||!gcalGisReady)return;
-  gcalUpdateLoginUI();
-  if(gcalToken){gcalLoadEvents();}
-  else{
-    gcalLog('🌸 「ログイン」を おしてね（はじめての ときだけ）');
-    renderTodayEventsLocal();
-  }
-}
-function gcalLogin(){
-  if(!gcalTokenClient){gcalLog('じゅんびちゅう...しばらく まってね',true);return;}
-  gcalTokenClient.requestAccessToken({prompt:'consent'});
-}
-function gcalLogout(){
-  if(gcalToken&&typeof google!=='undefined'){
-    try{google.accounts.oauth2.revoke(gcalToken);}catch(e){}
-  }
-  gcalToken=null;STORE.set('gcalToken',null);
-  if(typeof gapi!=='undefined')gapi.client.setToken('');
-  gcalUpdateLoginUI();
-  gcalLog('ログアウト しました。');
-  document.getElementById('gcalEventList').innerHTML='';
-  renderTodayEventsLocal();
-}
-async function gcalLoadEvents(){
-  if(!gcalGapiReady||!gcalToken)return;
-  gapi.client.setToken({access_token:gcalToken});
-  const t=new Date();
-  const start=new Date(t.getFullYear(),t.getMonth(),t.getDate(),0,0,0).toISOString();
-  const end=new Date(t.getFullYear(),t.getMonth(),t.getDate()+7,23,59,59).toISOString();
-  try{
-    const resp=await gapi.client.calendar.events.list({
-      calendarId:'primary',
-      timeMin:start,
-      timeMax:end,
-      singleEvents:true,
-      orderBy:'startTime',
-      maxResults:30
-    });
-    const items=resp.result.items||[];
-    gcalRenderEvents(items);
-    gcalLog(`✓ きょうから ７にちぶんの よていを ひょうじちゅう（${items.length}けん）`);
-  }catch(e){
-    if(e.status===401){
-      gcalToken=null;STORE.set('gcalToken',null);gcalUpdateLoginUI();
-      gcalLog('🔒 ログインが きれました。「ログイン」を おしてね',true);
-    }else{
-      gcalLog('❌ よみこみ エラー: '+(e.result?.error?.message||e.message||'unknown'),true);
-    }
-  }
-}
-function gcalRenderEvents(items){
-  const cont=document.getElementById('gcalEventList');
-  if(!cont)return;
-  if(!items.length){
-    cont.innerHTML='<div style="background:linear-gradient(135deg,#FFE4F1,#FFF5F9);padding:14px;border-radius:14px;text-align:center;font-size:14px;font-weight:700;color:var(--text-soft);border:2px dashed var(--pink-light);">きょうから ７にちは よていが ないよ 🌸</div>';
-    return;
-  }
-  const today=new Date();
-  const todayKey=`${today.getFullYear()}-${today.getMonth()+1}-${today.getDate()}`;
-  cont.innerHTML=items.map(e=>{
-    const isAllDay=!!e.start.date;
-    const dt=isAllDay?new Date(e.start.date+'T00:00:00+09:00'):new Date(e.start.dateTime);
-    const dKey=`${dt.getFullYear()}-${dt.getMonth()+1}-${dt.getDate()}`;
-    const isToday=dKey===todayKey;
-    const tomorrow=new Date(today);tomorrow.setDate(tomorrow.getDate()+1);
-    const tKey=`${tomorrow.getFullYear()}-${tomorrow.getMonth()+1}-${tomorrow.getDate()}`;
-    const isTomorrow=dKey===tKey;
-    const dayLabel=isToday?'きょう':isTomorrow?'あした':`${dt.getMonth()+1}/${dt.getDate()}（${'にちげつかすいもくきんど'[dt.getDay()]}）`;
-    const timeLabel=isAllDay?'いちにち':`${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
-    const bg=isToday?'linear-gradient(135deg,#FFE082,#FFD54F)':isTomorrow?'linear-gradient(135deg,#FFE4F1,#FFF5F9)':'#fff';
-    const border=isToday?'var(--gold)':'var(--pink-light)';
-    const labelColor=isToday?'#B07A08':'var(--pink-deep)';
-    return `<div style="background:${bg};border:3px solid ${border};border-radius:16px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;">
-      <div style="min-width:70px;text-align:center;">
-        <div style="font-size:13px;font-weight:900;color:${labelColor};">${dayLabel}</div>
-        <div style="font-size:11px;color:var(--text-soft);font-weight:700;">${timeLabel}</div>
-      </div>
-      <div style="flex:1;font-size:15px;font-weight:900;color:var(--text);">${(e.summary||'(なまえなし)').replace(/</g,'&lt;')}</div>
-      <button onclick="gcalDeleteEvent('${e.id}','${(e.summary||'').replace(/'/g,"\\'")}')" style="background:#FFCDD2;border:none;color:#C62828;padding:6px 10px;border-radius:10px;cursor:pointer;font-family:inherit;font-weight:900;font-size:12px;">けす</button>
-    </div>`;
-  }).join('');
-}
-async function gcalCreateEvent(){
-  if(!gcalToken){gcalLog('まず ログイン してね',true);gcalLogin();return;}
-  const dStr=document.getElementById('gcalNewDate').value;
-  const t=document.getElementById('gcalNewTitle').value.trim();
-  if(!dStr||!t){alert('ひづけと よていを かいてね');return;}
-  try{
-    gapi.client.setToken({access_token:gcalToken});
-    await gapi.client.calendar.events.insert({
-      calendarId:'primary',
-      resource:{
-        summary:t,
-        start:{date:dStr},
-        end:{date:dStr}
-      }
-    });
-    document.getElementById('gcalNewTitle').value='';
-    toggleGcalAddForm();
-    gcalLog('✓ よていを ふやしたよ！');
-    gcalLoadEvents();
-    celebrate('📅 よてい ふやしたよ！');
-  }catch(e){
-    gcalLog('❌ ふやす エラー: '+(e.result?.error?.message||e.message||'unknown'),true);
-  }
-}
-async function gcalDeleteEvent(id,title){
-  if(!confirm(`「${title||'このよてい'}」を けしますか？`))return;
-  try{
-    gapi.client.setToken({access_token:gcalToken});
-    await gapi.client.calendar.events.delete({calendarId:'primary',eventId:id});
-    gcalLog('✓ よていを けしたよ');
-    gcalLoadEvents();
-  }catch(e){
-    gcalLog('❌ けす エラー: '+(e.result?.error?.message||e.message||'unknown'),true);
-  }
-}
-function toggleGcalAddForm(){
-  const f=document.getElementById('gcalAddForm');
-  if(f.style.display==='none'){
-    f.style.display='block';
-    const d=new Date();
-    document.getElementById('gcalNewDate').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  }else{
-    f.style.display='none';
-  }
-}
-function renderTodayEventsLocal(){
+function renderTodayEvents(){
   const t=new Date();
   const y=t.getFullYear(),m=t.getMonth()+1,d=t.getDate();
   const ymKey=`${y}-${m}`;
@@ -1201,30 +1001,17 @@ function renderTodayEventsLocal(){
   const sch=(SCHOOL_EVENTS[ymKey]||[]).filter(e=>e.d===d);
   const cust=events[dateKey]||[];
   const all=[...sch.map(e=>e.t),...cust];
-  const cont=document.getElementById('gcalEventList');
+  const cont=document.getElementById('todayEvents');
   if(!cont)return;
   if(!all.length){
-    cont.innerHTML='<div style="background:linear-gradient(135deg,#FFE4F1,#FFF5F9);padding:14px;border-radius:14px;text-align:center;font-size:14px;font-weight:700;color:var(--text-soft);border:2px dashed var(--pink-light);">きょうは とくべつな よていは ないよ 🌸<br><span style="font-size:12px;color:var(--pink-deep);">ログインすると もっと くわしく みえるよ</span></div>';
+    cont.innerHTML=`<div style="background:linear-gradient(135deg,#FFE4F1,#FFF5F9);padding:14px;border-radius:14px;text-align:center;font-size:14px;font-weight:700;color:var(--text-soft);border:2px dashed var(--pink-light);">きょうは とくべつな よていは ないよ 🌸</div>`;
     return;
   }
   cont.innerHTML=`<div style="background:linear-gradient(135deg,#FFE082,#FFD54F);padding:14px;border-radius:14px;border:3px solid var(--gold);">
-    <div style="font-size:14px;font-weight:900;color:#B07A08;margin-bottom:8px;">⭐ きょうの よてい（がっこう）</div>
+    <div style="font-size:14px;font-weight:900;color:#B07A08;margin-bottom:8px;">⭐ きょうの とくべつな よてい</div>
     ${all.map(t=>`<div style="font-size:16px;font-weight:900;color:var(--text);padding:6px 0;">${t}</div>`).join('')}
   </div>`;
 }
-// 旧: renderTodayEvents は renderTodayEventsLocal のエイリアスとして維持
-function renderTodayEvents(){renderTodayEventsLocal();gcalInit();}
-// API スクリプト 読込み 後に 初期化
-window.addEventListener('load',()=>{
-  let tries=0;
-  const t=setInterval(()=>{
-    tries++;
-    if((typeof gapi!=='undefined'&&typeof google!=='undefined'&&google.accounts)||tries>40){
-      clearInterval(t);
-      gcalInit();
-    }
-  },300);
-});
 
 /* ============================
    じかんわり
